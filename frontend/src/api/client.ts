@@ -46,24 +46,13 @@ export async function simulateAutomaton(
       body: JSON.stringify({ automaton, input_string: inputString }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      return {
-        accepted: false,
-        input_string: inputString,
-        steps: [],
-        final_states: [],
-        error: err.detail || `Server error ${res.status}`,
-      };
+      // Fallback to pure client-side mathematical simulation if endpoint is unreachable/405
+      return clientSideSimulate(automaton, inputString);
     }
     return await res.json();
-  } catch (err: any) {
-    return {
-      accepted: false,
-      input_string: inputString,
-      steps: [],
-      final_states: [],
-      error: `Network error: ${err.message || 'Cannot reach server'}`,
-    };
+  } catch {
+    // Network fallback
+    return clientSideSimulate(automaton, inputString);
   }
 }
 
@@ -384,3 +373,110 @@ function clientSideValidate(a: AutomatonData): ValidationResponse {
 
   return { valid: errors.length === 0, errors };
 }
+
+function computeEpsilonClosure(
+  states: string[],
+  transitions: { from_state: string; symbol: string; to_state: string }[]
+): string[] {
+  const closure = new Set<string>(states);
+  const queue = [...states];
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    for (const t of transitions) {
+      if (t.from_state === curr && (t.symbol === 'ε' || t.symbol === 'e' || t.symbol === '')) {
+        if (!closure.has(t.to_state)) {
+          closure.add(t.to_state);
+          queue.push(t.to_state);
+        }
+      }
+    }
+  }
+  return Array.from(closure).sort();
+}
+
+function clientSideSimulate(a: AutomatonData, inputString: string): SimulateResponse {
+  if (!a.start_state || !a.states.includes(a.start_state)) {
+    return {
+      accepted: false,
+      input_string: inputString,
+      steps: [],
+      final_states: [],
+      error: 'Invalid or missing start state in automaton.',
+    };
+  }
+
+  const tokens = inputString ? inputString.split('') : [];
+  const steps: any[] = [];
+
+  if (a.type === 'DFA') {
+    let curr = a.start_state;
+    for (let i = 0; i < tokens.length; i++) {
+      const sym = tokens[i];
+      const match = a.transitions.find((t) => t.from_state === curr && t.symbol === sym);
+      const nxt = match ? match.to_state : null;
+      steps.push({
+        step_index: i,
+        current_states: [curr],
+        symbol: sym,
+        next_states: nxt ? [nxt] : [],
+      });
+      if (!nxt) {
+        return {
+          accepted: false,
+          input_string: inputString,
+          steps,
+          final_states: [],
+        };
+      }
+      curr = nxt;
+    }
+    const accepted = a.accepting_states.includes(curr);
+    return {
+      accepted,
+      input_string: inputString,
+      steps,
+      final_states: [curr],
+    };
+  }
+
+  // NFA / EPSILON_NFA
+  const isEnfa = a.type === 'EPSILON_NFA';
+  let currentStates = isEnfa
+    ? computeEpsilonClosure([a.start_state], a.transitions)
+    : [a.start_state];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const sym = tokens[i];
+    const nextSet = new Set<string>();
+    for (const st of currentStates) {
+      for (const t of a.transitions) {
+        if (t.from_state === st && t.symbol === sym) {
+          nextSet.add(t.to_state);
+        }
+      }
+    }
+    const rawNext = Array.from(nextSet);
+    const closedNext = isEnfa ? computeEpsilonClosure(rawNext, a.transitions) : rawNext.sort();
+
+    steps.push({
+      step_index: i,
+      current_states: currentStates,
+      symbol: sym,
+      next_states: closedNext,
+    });
+
+    currentStates = closedNext;
+    if (currentStates.length === 0) {
+      break;
+    }
+  }
+
+  const accepted = currentStates.some((st) => a.accepting_states.includes(st));
+  return {
+    accepted,
+    input_string: inputString,
+    steps,
+    final_states: currentStates,
+  };
+}
+
