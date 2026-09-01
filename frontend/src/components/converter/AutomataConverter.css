@@ -1,0 +1,326 @@
+/* ===================================================================
+   Automata Converter Workspace Styles
+   =================================================================== */
+
+.converter-workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--bg-app);
+  padding: 16px;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+/* ─── Top Converter Bar ─── */
+.converter-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 10px 16px;
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.converter-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.converter-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.converter-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.converter-controls-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-convert-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.btn-convert-action:hover:not(:disabled) {
+  background: var(--accent-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-convert-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Dual Canvas Grid ─── */
+.converter-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  min-height: 420px;
+}
+
+@media (max-width: 960px) {
+  .converter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.canvas-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+
+.canvas-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  background: var(--bg-surface-sunken);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.canvas-card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.badge-tag.enfa {
+  background: var(--bg-badge);
+  color: var(--accent-purple);
+}
+
+.badge-tag.dfa {
+  background: var(--bg-success);
+  color: var(--text-success);
+}
+
+.canvas-card-body {
+  flex: 1;
+  height: 380px;
+  position: relative;
+}
+
+/* ─── Statistics Bar ─── */
+.stats-banner {
+  display: flex;
+  justify-content: space-around;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 12px 16px;
+  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-divider {
+  width: 1px;
+  height: 32px;
+  background: var(--border-default);
+}
+
+/* ─── Verification Sanity Badge ─── */
+.verification-badge-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.verification-badge-container.verified {
+  background: var(--bg-success);
+  color: var(--text-success);
+  border: 1px solid var(--text-success);
+}
+
+.verification-badge-container.failed {
+  background: var(--bg-error);
+  color: var(--text-error);
+  border: 1px solid var(--text-error);
+}
+
+/* ─── Trace Section ─── */
+.trace-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.trace-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trace-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.trace-nav-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.trace-step-indicator {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0 8px;
+}
+
+.trace-step-details {
+  background: var(--bg-surface-sunken);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+
+.trace-step-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  font-size: 12px;
+}
+
+.trace-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.trace-cell-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.trace-cell-value {
+  font-size: 13px;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  color: var(--text-primary);
+}
+
+.trace-cell-value.highlight {
+  color: var(--accent-primary);
+}
+
+/* Trace Step Table List */
+.trace-table-wrapper {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.trace-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.trace-table th,
+.trace-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.trace-table th {
+  background: var(--bg-surface-sunken);
+  color: var(--text-secondary);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+}
+
+.trace-row {
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.trace-row:hover {
+  background: var(--bg-hover);
+}
+
+.trace-row.active {
+  background: var(--bg-active);
+  font-weight: 600;
+}
+

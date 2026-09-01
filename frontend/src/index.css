@@ -1,0 +1,204 @@
+/* ===== AutoVerify Theme System ===== */
+
+/* --- Light Theme (default) --- */
+:root,
+[data-theme="light"] {
+  --bg-app: #f0f2f5;
+  --bg-surface: #ffffff;
+  --bg-surface-raised: #ffffff;
+  --bg-surface-sunken: #f8f9fb;
+  --bg-canvas: #f4f6f9;
+  --bg-canvas-dot: #d0d5dd;
+  --bg-toolbar: #ffffff;
+  --bg-input: #ffffff;
+  --bg-hover: #f1f3f5;
+  --bg-active: #e8edf3;
+  --bg-overlay: rgba(15, 23, 42, 0.45);
+  --bg-popover: #ffffff;
+  --bg-tooltip: #1e293b;
+  --bg-badge: #e2e8f0;
+  --bg-success: #dcfce7;
+  --bg-error: #fee2e2;
+  --bg-warning: #fef3c7;
+
+  --border-default: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  --border-strong: #cbd5e1;
+  --border-focus: #3b82f6;
+  --border-active: #2563eb;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --text-inverse: #ffffff;
+  --text-link: #2563eb;
+  --text-success: #15803d;
+  --text-error: #b91c1c;
+  --text-warning: #92400e;
+  --text-tooltip: #f8fafc;
+
+  --accent-primary: #2563eb;
+  --accent-primary-hover: #1d4ed8;
+  --accent-secondary: #059669;
+  --accent-danger: #dc2626;
+  --accent-purple: #7c3aed;
+  --accent-amber: #d97706;
+
+  /* Node colors */
+  --node-bg: #ffffff;
+  --node-border: #64748b;
+  --node-text: #1e293b;
+  --node-start-bg: #eff6ff;
+  --node-start-border: #2563eb;
+  --node-accept-border: #059669;
+  --node-selected-bg: #fef3c7;
+  --node-selected-border: #f59e0b;
+  --node-active-bg: #10b981;
+  --node-active-border: #047857;
+  --node-active-text: #ffffff;
+
+  /* Edge colors */
+  --edge-default: #64748b;
+  --edge-epsilon: #8b5cf6;
+  --edge-selected: #f59e0b;
+  --edge-label-bg: rgba(255, 255, 255, 0.92);
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.07), 0 2px 4px -2px rgba(0,0,0,0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.05);
+  --shadow-popup: 0 10px 40px rgba(0,0,0,0.12);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+/* --- Dark Theme --- */
+[data-theme="dark"] {
+  --bg-app: #0f1117;
+  --bg-surface: #1a1d27;
+  --bg-surface-raised: #22252f;
+  --bg-surface-sunken: #13151c;
+  --bg-canvas: #141620;
+  --bg-canvas-dot: #2a2d3a;
+  --bg-toolbar: #1a1d27;
+  --bg-input: #22252f;
+  --bg-hover: #262937;
+  --bg-active: #2e3245;
+  --bg-overlay: rgba(0, 0, 0, 0.6);
+  --bg-popover: #22252f;
+  --bg-tooltip: #e2e8f0;
+  --bg-badge: #2e3245;
+  --bg-success: #052e16;
+  --bg-error: #450a0a;
+  --bg-warning: #451a03;
+
+  --border-default: #2e3245;
+  --border-subtle: #22252f;
+  --border-strong: #3d4255;
+  --border-focus: #3b82f6;
+  --border-active: #60a5fa;
+
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --text-inverse: #0f172a;
+  --text-link: #60a5fa;
+  --text-success: #4ade80;
+  --text-error: #f87171;
+  --text-warning: #fbbf24;
+  --text-tooltip: #1e293b;
+
+  --accent-primary: #3b82f6;
+  --accent-primary-hover: #60a5fa;
+  --accent-secondary: #34d399;
+  --accent-danger: #ef4444;
+  --accent-purple: #a78bfa;
+  --accent-amber: #fbbf24;
+
+  --node-bg: #22252f;
+  --node-border: #64748b;
+  --node-text: #e2e8f0;
+  --node-start-bg: #1e3a5f;
+  --node-start-border: #3b82f6;
+  --node-accept-border: #34d399;
+  --node-selected-bg: #422006;
+  --node-selected-border: #f59e0b;
+  --node-active-bg: #059669;
+  --node-active-border: #34d399;
+  --node-active-text: #ffffff;
+
+  --edge-default: #64748b;
+  --edge-epsilon: #a78bfa;
+  --edge-selected: #fbbf24;
+  --edge-label-bg: rgba(26, 29, 39, 0.92);
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.3);
+  --shadow-lg: 0 10px 15px rgba(0,0,0,0.35);
+  --shadow-popup: 0 10px 40px rgba(0,0,0,0.5);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+/* ===== Global Reset & Base ===== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--text-primary);
+  background-color: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-tertiary);
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-primary);
+  color: var(--text-inverse);
+}
