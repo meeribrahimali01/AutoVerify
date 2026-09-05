@@ -12,6 +12,8 @@ import {
   ValidationResponse,
 } from '../types';
 
+export const DEFAULT_PRODUCTION_BACKEND_URL = 'https://autoverify-backend-kh5o.onrender.com';
+
 export function getApiBase(): string {
   if (typeof window !== 'undefined') {
     const custom = localStorage.getItem('autoverify_api_url')?.trim();
@@ -22,6 +24,15 @@ export function getApiBase(): string {
   const rawEnv = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
   if (rawEnv) {
     return rawEnv.endsWith('/api/v1') ? rawEnv : `${rawEnv.replace(/\/+$/, '')}/api/v1`;
+  }
+  // When running on production (Vercel, custom domain, or any non-localhost host),
+  // automatically default to the live Render backend URL:
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname !== 'localhost' &&
+    window.location.hostname !== '127.0.0.1'
+  ) {
+    return `${DEFAULT_PRODUCTION_BACKEND_URL}/api/v1`;
   }
   return '/api/v1';
 }
