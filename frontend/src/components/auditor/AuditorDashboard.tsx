@@ -12,9 +12,13 @@ import {
 } from '../../types';
 import {
   analyzeProject,
+  checkBackendHealth,
   executeSingleTest,
+  getApiBase,
   getAuditStatus,
   getAuditorConverters,
+  getRawCustomApiUrl,
+  setCustomApiUrl,
   triggerAuditRun,
   triggerProjectAuditRun,
   uploadProjectZip,
@@ -85,11 +89,24 @@ export const AuditorDashboard: React.FC = () => {
   const [selectedFailure, setSelectedFailure] = useState<AuditResultItem | null>(null);
   const [copiedReport, setCopiedReport] = useState<boolean>(false);
 
+  // Backend Server Settings Modal
+  const [showServerModal, setShowServerModal] = useState<boolean>(false);
+  const [serverUrlInput, setServerUrlInput] = useState<string>(getRawCustomApiUrl());
+  const [serverTestStatus, setServerTestStatus] = useState<string | null>(null);
+  const [serverStatusPill, setServerStatusPill] = useState<'connected' | 'checking' | 'offline' | 'default'>('checking');
+
   const pollIntervalRef = useRef<number | null>(null);
 
-  // Load converter options on mount
+  // Load converter options and check server health on mount
   useEffect(() => {
     getAuditorConverters().then((res: ConverterInfo[]) => setConverters(res));
+    checkBackendHealth().then((res) => {
+      if (res.healthy) {
+        setServerStatusPill('connected');
+      } else {
+        setServerStatusPill(getRawCustomApiUrl() ? 'offline' : 'default');
+      }
+    });
   }, []);
 
   // Poll audit status while running
@@ -128,8 +145,15 @@ export const AuditorDashboard: React.FC = () => {
   // Handle Project ZIP Selection / Upload
   const handleZipFileSelected = async (file: File) => {
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.zip')) {
-      setUploadError('Invalid file format. Please upload a .zip project file.');
+    const nameLower = file.name.trim().toLowerCase();
+    const typeLower = (file.type || '').toLowerCase();
+    const isZip =
+      nameLower.endsWith('.zip') ||
+      typeLower.includes('zip') ||
+      typeLower.includes('octet-stream');
+
+    if (!isZip) {
+      setUploadError(`Invalid file format: "${file.name}". Please select a .zip project archive.`);
       return;
     }
     if (file.size > 50 * 1024 * 1024) {
@@ -151,7 +175,7 @@ export const AuditorDashboard: React.FC = () => {
       const resp = await uploadProjectZip(file);
       setProjectInspection(resp);
     } catch (err: any) {
-      setUploadError(err.message || 'Failed to inspect project ZIP.');
+      setUploadError(err.message || 'Failed to inspect project ZIP archive.');
       setProjectInspection(null);
     } finally {
       setUploadLoading(false);
@@ -162,16 +186,26 @@ export const AuditorDashboard: React.FC = () => {
   // Drag & Drop handlers
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(true);
   };
-  const handleDragLeave = () => {
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     setIsDragging(false);
   };
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleZipFileSelected(e.dataTransfer.files[0]);
+    } else if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      const item = e.dataTransfer.items[0];
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) handleZipFileSelected(file);
+      }
     }
   };
 
@@ -188,7 +222,8 @@ export const AuditorDashboard: React.FC = () => {
     try {
       const resp = await analyzeProject(
         projectInspection.project_id,
-        manualEntryPointOverride || selectedManualEntry || undefined
+        manualEntryPointOverride || selectedManualEntry || undefined,
+        projectInspection
       );
       setAnalysisResponse(resp);
       if (resp.analysis?.entry_point) {
@@ -329,16 +364,48 @@ export const AuditorDashboard: React.FC = () => {
                 Complete pipeline: Upload → Static AI Analysis → Sandbox Execution → Formal Mathematical Verification
               </div>
             </div>
-            <span className="badge-tag enfa" style={{ padding: '4px 10px' }}>
-              Full Automated Audit
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{
+                  fontSize: '11px',
+                  padding: '5px 10px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  borderRadius: '6px',
+                }}
+                onClick={() => setShowServerModal(true)}
+                title="Configure backend server URL"
+              >
+                <span
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor:
+                      serverStatusPill === 'connected'
+                        ? '#10b981'
+                        : serverStatusPill === 'offline'
+                        ? '#ef4444'
+                        : '#f59e0b',
+                  }}
+                />
+                Backend Server
+              </button>
+              <span className="badge-tag enfa" style={{ padding: '4px 10px' }}>
+                Full Automated Audit
+              </span>
+            </div>
           </div>
 
           {/* Hidden File Input */}
           <input
             ref={fileInputRef}
             type="file"
-            accept=".zip,application/zip,application/x-zip-compressed"
+            accept=".zip"
             style={{ display: 'none' }}
             onChange={(e) => {
               if (e.target.files && e.target.files.length > 0) {
@@ -363,9 +430,20 @@ export const AuditorDashboard: React.FC = () => {
                 <h3>Audit Student Project</h3>
                 <p className="dropzone-instruction">
                   Drop a <strong>.zip</strong> project here <br />
-                  or <button type="button" className="choose-file-link">Choose ZIP File</button>
+                  or{' '}
+                  <button
+                    type="button"
+                    className="choose-file-link"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      fileInputRef.current?.click();
+                    }}
+                  >
+                    Choose ZIP File
+                  </button>
                 </p>
-                <div className="dropzone-meta">Maximum size: 50 MB</div>
+                <div className="dropzone-meta">Maximum size: 50 MB (Accepts any standard .zip archive)</div>
                 {uploadLoading && (
                   <div className="upload-spinner-row">
                     <span className="loading-spinner" />
@@ -1318,6 +1396,139 @@ export const AuditorDashboard: React.FC = () => {
               >
                 Close Investigation
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── SERVER SETTINGS MODAL ─── */}
+      {showServerModal && (
+        <div
+          className="modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+          }}
+          onClick={() => setShowServerModal(false)}
+        >
+          <div
+            className="auditor-card"
+            style={{
+              maxWidth: '480px',
+              width: '92%',
+              padding: '24px',
+              background: 'var(--bg-surface, #ffffff)',
+              borderRadius: '12px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>⚙️</span> Backend Server Settings
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              If your backend is hosted on Render (or running locally), specify its URL below. AutoVerify will connect directly to it.
+            </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                Backend API URL:
+              </label>
+              <input
+                type="text"
+                value={serverUrlInput}
+                onChange={(e) => {
+                  setServerUrlInput(e.target.value);
+                  setServerTestStatus(null);
+                }}
+                placeholder="e.g. https://autoverify-backend.onrender.com"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  fontSize: '13px',
+                  boxSizing: 'border-box',
+                  background: 'var(--bg-input, #ffffff)',
+                  color: 'inherit',
+                }}
+              />
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                Active URL: <code style={{ wordBreak: 'break-all' }}>{getApiBase()}</code>
+              </div>
+            </div>
+
+            {serverTestStatus && (
+              <div
+                style={{
+                  padding: '10px 14px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  marginBottom: '16px',
+                  background: serverTestStatus === 'success' ? '#ecfdf5' : serverTestStatus === 'testing' ? '#eff6ff' : '#fef2f2',
+                  color: serverTestStatus === 'success' ? '#065f46' : serverTestStatus === 'testing' ? '#1e40af' : '#991b1b',
+                  border: `1px solid ${serverTestStatus === 'success' ? '#a7f3d0' : serverTestStatus === 'testing' ? '#bfdbfe' : '#fecaca'}`,
+                }}
+              >
+                {serverTestStatus === 'success'
+                  ? '✓ Backend is online and responding!'
+                  : serverTestStatus === 'testing'
+                  ? 'Testing connection to backend...'
+                  : '⚠ Could not connect to backend at this URL. Please verify the URL and ensure your backend is awake.'}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginTop: '20px' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={async () => {
+                  setServerTestStatus('testing');
+                  setCustomApiUrl(serverUrlInput);
+                  const res = await checkBackendHealth();
+                  if (res.healthy) {
+                    setServerTestStatus('success');
+                    setServerStatusPill('connected');
+                  } else {
+                    setServerTestStatus('failed');
+                    setServerStatusPill('offline');
+                  }
+                }}
+              >
+                Test Connection
+              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setServerUrlInput('');
+                    setCustomApiUrl('');
+                    setServerTestStatus(null);
+                    setServerStatusPill('default');
+                  }}
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => {
+                    setCustomApiUrl(serverUrlInput);
+                    setShowServerModal(false);
+                    checkBackendHealth().then((res) => {
+                      setServerStatusPill(res.healthy ? 'connected' : 'offline');
+                    });
+                  }}
+                >
+                  Save & Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

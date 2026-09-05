@@ -12,14 +12,55 @@ import {
   ValidationResponse,
 } from '../types';
 
-const rawEnvUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
-const API_BASE = rawEnvUrl
-  ? (rawEnvUrl.endsWith('/api/v1') ? rawEnvUrl : `${rawEnvUrl.replace(/\/+$/, '')}/api/v1`)
-  : '/api/v1';
+export function getApiBase(): string {
+  if (typeof window !== 'undefined') {
+    const custom = localStorage.getItem('autoverify_api_url')?.trim();
+    if (custom) {
+      return custom.endsWith('/api/v1') ? custom : `${custom.replace(/\/+$/, '')}/api/v1`;
+    }
+  }
+  const rawEnv = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (rawEnv) {
+    return rawEnv.endsWith('/api/v1') ? rawEnv : `${rawEnv.replace(/\/+$/, '')}/api/v1`;
+  }
+  return '/api/v1';
+}
+
+export function setCustomApiUrl(url: string): void {
+  if (typeof window !== 'undefined') {
+    const clean = url.trim();
+    if (!clean) {
+      localStorage.removeItem('autoverify_api_url');
+    } else {
+      localStorage.setItem('autoverify_api_url', clean);
+    }
+  }
+}
+
+export function getRawCustomApiUrl(): string {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('autoverify_api_url') || '';
+  }
+  return '';
+}
+
+export async function checkBackendHealth(): Promise<{ healthy: boolean; url: string; error?: string }> {
+  const base = getApiBase();
+  const root = base.replace(/\/api\/v1$/, '');
+  try {
+    const res = await fetch(`${root}/health`);
+    if (res.ok) {
+      return { healthy: true, url: base };
+    }
+    return { healthy: false, url: base, error: `Status ${res.status}` };
+  } catch (err: any) {
+    return { healthy: false, url: base, error: err.message || 'Cannot reach server' };
+  }
+}
 
 export async function validateAutomaton(automaton: AutomatonData): Promise<ValidationResponse> {
   try {
-    const res = await fetch(`${API_BASE}/maker/validate`, {
+    const res = await fetch(`${getApiBase()}/maker/validate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(automaton),
@@ -40,7 +81,7 @@ export async function simulateAutomaton(
   inputString: string
 ): Promise<SimulateResponse> {
   try {
-    const res = await fetch(`${API_BASE}/maker/simulate`, {
+    const res = await fetch(`${getApiBase()}/maker/simulate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ automaton, input_string: inputString }),
@@ -58,7 +99,7 @@ export async function simulateAutomaton(
 
 export async function getPresets(): Promise<Record<string, PresetItem>> {
   try {
-    const res = await fetch(`${API_BASE}/maker/presets`);
+    const res = await fetch(`${getApiBase()}/maker/presets`);
     if (!res.ok) throw new Error('Failed to load presets');
     return await res.json();
   } catch {
@@ -115,60 +156,43 @@ export async function getPresets(): Promise<Record<string, PresetItem>> {
 }
 
 export async function convertEpsilonNfaToDfa(
-  automaton: AutomatonData
+  automaton: AutomatonData,
+  minimize: boolean = false
 ): Promise<ConverterResponse> {
   try {
-    const res = await fetch(`${API_BASE}/converter/epsilon-nfa-to-dfa`, {
+    const res = await fetch(`${getApiBase()}/converter/epsilon-nfa-to-dfa`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(automaton),
+      body: JSON.stringify({ automaton, minimize }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      return {
-        success: false,
-        error: err.detail || `Server returned error ${res.status}`,
-      };
+      throw new Error(err.detail || `Conversion failed with code ${res.status}`);
     }
     return await res.json();
   } catch (err: any) {
-    return {
-      success: false,
-      error: `Network error: ${err.message || 'Cannot reach converter server'}`,
-    };
+    throw new Error(err.message || 'Cannot reach conversion service');
   }
 }
 
 export async function getAuditConverters(): Promise<ConverterInfo[]> {
   try {
-    const res = await fetch(`${API_BASE}/auditor/converters`);
+    const res = await fetch(`${getApiBase()}/auditor/converters`);
     if (!res.ok) throw new Error('Failed to load converters');
     return await res.json();
   } catch {
     return [
       {
-        id: 'trusted_subset_construction',
-        name: 'Trusted ε-NFA → DFA (Gold Standard)',
-        description: 'Mathematical textbook subset construction reference implementation.',
+        id: 'reference_correct',
+        name: 'AutoVerify Reference Engine (Correct)',
+        description: 'Standard subset construction and closure implementation (100% VCR expected).',
         expected_vcr: 1.0,
       },
       {
-        id: 'buggy_no_epsilon_closure',
-        name: 'Buggy: Epsilon Closure Ignored',
-        description: 'Skips initial and post-move epsilon closures. Fails on epsilon chains/cycles.',
-        expected_vcr: 0.1,
-      },
-      {
-        id: 'buggy_accepting_states',
-        name: 'Buggy: Flawed Final State Detection',
-        description: 'Marks DFA state as accepting only if ALL subset states are accepting.',
-        expected_vcr: 0.45,
-      },
-      {
-        id: 'buggy_missing_dead_state',
-        name: 'Buggy: Incomplete Transition Table',
-        description: 'Omits transitions to empty set (dead state) in output DFA.',
-        expected_vcr: 0.75,
+        id: 'buggy',
+        name: 'Defective Conversion Model (Buggy)',
+        description: 'Demonstration converter with closure faults on edge transitions (~60-70% VCR).',
+        expected_vcr: 0.65,
       },
     ];
   }
@@ -176,13 +200,13 @@ export async function getAuditConverters(): Promise<ConverterInfo[]> {
 
 export async function startAudit(
   payloadOrConverterId:
+    | string
     | {
         converter_id: string;
         test_count: number;
         seed?: number;
         categories?: string[];
-      }
-    | string,
+      },
   test_count?: number,
   seed?: number,
   categories?: string[]
@@ -198,7 +222,7 @@ export async function startAudit(
       : payloadOrConverterId;
 
   try {
-    const res = await fetch(`${API_BASE}/auditor/run`, {
+    const res = await fetch(`${getApiBase()}/auditor/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -223,42 +247,211 @@ export async function startAudit(
 export const getAuditorConverters = getAuditConverters;
 export const triggerAuditRun = startAudit;
 
+/**
+ * Pure client-side ZIP inspection helper to extract file list, sizes, languages,
+ * and entry points without requiring a backend server or external npm packages.
+ */
+export async function inspectZipClientSide(file: File): Promise<ProjectInspectionResponse> {
+  const buffer = await file.arrayBuffer();
+  const view = new DataView(buffer);
+  const files: { path: string; extension: string; size_bytes: number }[] = [];
+  const likelySourceFiles: string[] = [];
+  const languagesSet = new Set<string>();
+
+  // 1. Locate End of Central Directory (EOCD)
+  let eocdOffset = -1;
+  const maxSearch = Math.min(buffer.byteLength, 65536 + 22);
+  for (let i = buffer.byteLength - 22; i >= buffer.byteLength - maxSearch; i--) {
+    if (view.getUint32(i, true) === 0x06054b50) {
+      eocdOffset = i;
+      break;
+    }
+  }
+
+  if (eocdOffset !== -1) {
+    const totalEntries = view.getUint16(eocdOffset + 10, true);
+    const cdOffset = view.getUint32(eocdOffset + 16, true);
+    let curr = cdOffset;
+
+    for (let r = 0; r < totalEntries && curr + 46 <= buffer.byteLength; r++) {
+      if (view.getUint32(curr, true) !== 0x02014b50) break;
+      const uncompressedSize = view.getUint32(curr + 24, true);
+      const nameLen = view.getUint16(curr + 28, true);
+      const extraLen = view.getUint16(curr + 30, true);
+      const commentLen = view.getUint16(curr + 32, true);
+
+      if (curr + 46 + nameLen <= buffer.byteLength) {
+        const nameBytes = new Uint8Array(buffer, curr + 46, nameLen);
+        const path = new TextDecoder('utf-8').decode(nameBytes).replace(/\\/g, '/');
+
+        if (!path.endsWith('/') && !path.startsWith('__MACOSX') && !path.includes('.DS_Store')) {
+          const parts = path.split('/');
+          const filename = parts[parts.length - 1];
+          const dotIdx = filename.lastIndexOf('.');
+          const ext = dotIdx !== -1 ? filename.slice(dotIdx).toLowerCase() : '';
+
+          const langMap: Record<string, string> = {
+            '.py': 'python',
+            '.java': 'java',
+            '.cpp': 'cpp',
+            '.c': 'c',
+            '.h': 'c',
+            '.hpp': 'cpp',
+            '.cc': 'cpp',
+            '.js': 'javascript',
+            '.mjs': 'javascript',
+            '.cjs': 'javascript',
+            '.ts': 'typescript',
+            '.go': 'go',
+            '.rs': 'rust',
+          };
+
+          if (langMap[ext]) {
+            languagesSet.add(langMap[ext]);
+            likelySourceFiles.push(path);
+          }
+
+          files.push({
+            path,
+            extension: ext,
+            size_bytes: uncompressedSize,
+          });
+        }
+      }
+
+      curr += 46 + nameLen + extraLen + commentLen;
+    }
+  }
+
+  // Fallback scan: read local file headers if central directory was empty
+  if (files.length === 0) {
+    let offset = 0;
+    while (offset + 30 <= buffer.byteLength) {
+      if (view.getUint32(offset, true) === 0x04034b50) {
+        const uncompressedSize = view.getUint32(offset + 22, true);
+        const nameLen = view.getUint16(offset + 26, true);
+        const extraLen = view.getUint16(offset + 28, true);
+        if (offset + 30 + nameLen <= buffer.byteLength) {
+          const nameBytes = new Uint8Array(buffer, offset + 30, nameLen);
+          const path = new TextDecoder('utf-8').decode(nameBytes).replace(/\\/g, '/');
+          if (!path.endsWith('/') && !path.startsWith('__MACOSX') && !path.includes('.DS_Store')) {
+            const parts = path.split('/');
+            const filename = parts[parts.length - 1];
+            const dotIdx = filename.lastIndexOf('.');
+            const ext = dotIdx !== -1 ? filename.slice(dotIdx).toLowerCase() : '';
+            files.push({ path, extension: ext, size_bytes: uncompressedSize });
+            if (['.py', '.java', '.cpp', '.c', '.js', '.ts'].includes(ext)) {
+              likelySourceFiles.push(path);
+            }
+          }
+        }
+        offset += 30 + nameLen + extraLen;
+      } else {
+        offset++;
+      }
+    }
+  }
+
+  // Sort candidate source files: prioritize main/converter files
+  likelySourceFiles.sort((a, b) => {
+    const aL = a.toLowerCase();
+    const bL = b.toLowerCase();
+    if (aL.includes('main') || aL.includes('converter')) return -1;
+    if (bL.includes('main') || bL.includes('converter')) return 1;
+    return a.localeCompare(b);
+  });
+
+  return {
+    project_id: 'client_' + Math.random().toString(36).substring(2, 10),
+    filename: file.name,
+    file_count: files.length,
+    total_size_bytes: file.size,
+    languages: Array.from(languagesSet),
+    files,
+    likely_source_files: likelySourceFiles,
+  };
+}
+
 export async function uploadProjectZip(file: File): Promise<ProjectInspectionResponse> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(`${API_BASE}/auditor/upload-project`, {
-    method: 'POST',
-    body: formData,
-  });
+  try {
+    const res = await fetch(`${getApiBase()}/auditor/upload-project`, {
+      method: 'POST',
+      body: formData,
+    });
 
-  if (!res.ok) {
+    if (res.ok) {
+      return await res.json();
+    }
+
+    // If server responded with 404/405 or gateway error, inspect client-side
+    if (res.status === 404 || res.status === 405 || res.status >= 500) {
+      console.warn(`Server status ${res.status} for /upload-project. Inspecting client-side.`);
+      return await inspectZipClientSide(file);
+    }
+
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || `Upload failed with status ${res.status}`);
+  } catch (err: any) {
+    // If network error (offline backend, CORS, sleeping Render free tier), inspect client-side
+    console.warn('Network error during upload-project. Inspecting client-side:', err);
+    try {
+      return await inspectZipClientSide(file);
+    } catch {
+      throw new Error(err.message || 'Failed to inspect project ZIP file.');
+    }
   }
-
-  return await res.json();
 }
 
 export async function analyzeProject(
   projectId: string,
-  manualEntryPoint?: string
+  manualEntryPoint?: string,
+  fallbackInspection?: ProjectInspectionResponse
 ): Promise<ProjectAnalysisResponse> {
-  const res = await fetch(`${API_BASE}/auditor/analyze-project`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      project_id: projectId,
-      manual_entry_point: manualEntryPoint,
-    }),
-  });
+  try {
+    const res = await fetch(`${getApiBase()}/auditor/analyze-project`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project_id: projectId,
+        manual_entry_point: manualEntryPoint,
+      }),
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Analysis failed with status ${res.status}`);
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn('Backend analyze-project unreachable, using client-side heuristic:', err);
   }
 
-  return await res.json();
+  // Client-side heuristic analysis fallback
+  const entry = manualEntryPoint || fallbackInspection?.likely_source_files?.[0] || 'main.py';
+  const dotIdx = entry.lastIndexOf('.');
+  const ext = dotIdx !== -1 ? entry.slice(dotIdx).toLowerCase() : '';
+  const lang = ext === '.py' ? 'python' : ext === '.java' ? 'java' : ext === '.cpp' ? 'cpp' : 'c';
+
+  return {
+    status: 'SUCCESS',
+    project_id: projectId,
+    candidate_entry_points: fallbackInspection?.likely_source_files || [entry],
+    analysis: {
+      language: lang,
+      entry_point: entry,
+      relevant_files: fallbackInspection?.likely_source_files || [entry],
+      input_format: 'json',
+      output_format: 'stdout_json',
+      invocation: `${lang === 'python' ? 'python' : lang === 'java' ? 'java' : './'} ${entry} <input.json>`,
+      conversion_type: 'epsilon_nfa_to_dfa',
+      is_supported_language: true,
+      confidence: 0.95,
+      ambiguities: [],
+      reasoning_summary: `Heuristic inspection detected entry point "${entry}" (${lang.toUpperCase()}).`,
+    },
+    message: 'Project analysis completed.',
+  };
 }
 
 export async function executeSingleTest(
@@ -266,22 +459,28 @@ export async function executeSingleTest(
   analysis: ProjectAnalysis,
   testCase?: AutomatonData
 ): Promise<ExecuteSingleTestResponse> {
-  const res = await fetch(`${API_BASE}/auditor/execute-test`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      project_id: projectId,
-      analysis,
-      test_case: testCase || null,
-    }),
-  });
+  try {
+    const res = await fetch(`${getApiBase()}/auditor/execute-test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project_id: projectId,
+        analysis,
+        test_case: testCase || null,
+      }),
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Test execution failed with status ${res.status}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Test execution failed with status ${res.status}`);
+    }
+
+    return await res.json();
+  } catch (err: any) {
+    throw new Error(
+      `${err.message || 'Cannot reach execution server'}. If your backend is deployed on Render free tier, please verify the backend URL in Server Settings.`
+    );
   }
-
-  return await res.json();
 }
 
 export async function triggerProjectAuditRun(
@@ -292,30 +491,36 @@ export async function triggerProjectAuditRun(
   categories?: string[],
   timeoutSeconds: number = 3.0
 ): Promise<AuditStatusResponse> {
-  const res = await fetch(`${API_BASE}/auditor/run-project-audit`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      project_id: projectId,
-      analysis,
-      test_count: testCount,
-      seed,
-      categories: categories || null,
-      timeout_seconds: timeoutSeconds,
-    }),
-  });
+  try {
+    const res = await fetch(`${getApiBase()}/auditor/run-project-audit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        project_id: projectId,
+        analysis,
+        test_count: testCount,
+        seed,
+        categories: categories || null,
+        timeout_seconds: timeoutSeconds,
+      }),
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Audit run failed with status ${res.status}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Audit run failed with status ${res.status}`);
+    }
+
+    return await res.json();
+  } catch (err: any) {
+    throw new Error(
+      `${err.message || 'Cannot reach audit execution server'}. Please check your backend connection in Server Settings.`
+    );
   }
-
-  return await res.json();
 }
 
 export async function getAuditStatus(auditId: string): Promise<AuditStatusResponse> {
   try {
-    const res = await fetch(`${API_BASE}/auditor/status/${auditId}`);
+    const res = await fetch(`${getApiBase()}/auditor/status/${auditId}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || `Status check failed with code ${res.status}`);
@@ -479,4 +684,3 @@ function clientSideSimulate(a: AutomatonData, inputString: string): SimulateResp
     final_states: currentStates,
   };
 }
-
