@@ -28,6 +28,7 @@ class ProjectAnalysisRequest(BaseModel):
     """Request payload to analyze an uploaded project."""
     project_id: str = Field(..., description="ID of previously extracted project")
     manual_entry_point: Optional[str] = Field(None, description="Optional teacher-specified entry point override")
+    ai_api_key: Optional[str] = Field(None, description="Optional client-provided AI/Gemini API key")
 
 
 class ProjectAnalysisResponse(BaseModel):

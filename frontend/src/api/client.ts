@@ -44,6 +44,24 @@ export function getRawCustomApiUrl(): string {
   return '';
 }
 
+export function getCustomAiApiKey(): string {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('autoverify_ai_api_key') || '';
+  }
+  return '';
+}
+
+export function setCustomAiApiKey(key: string): void {
+  if (typeof window !== 'undefined') {
+    const clean = key.trim();
+    if (!clean) {
+      localStorage.removeItem('autoverify_ai_api_key');
+    } else {
+      localStorage.setItem('autoverify_ai_api_key', clean);
+    }
+  }
+}
+
 export async function checkBackendHealth(): Promise<{ healthy: boolean; url: string; error?: string }> {
   const base = getApiBase();
   const root = base.replace(/\/api\/v1$/, '');
@@ -408,8 +426,10 @@ export async function uploadProjectZip(file: File): Promise<ProjectInspectionRes
 export async function analyzeProject(
   projectId: string,
   manualEntryPoint?: string,
-  fallbackInspection?: ProjectInspectionResponse
+  fallbackInspection?: ProjectInspectionResponse,
+  overrideAiKey?: string
 ): Promise<ProjectAnalysisResponse> {
+  const apiKey = overrideAiKey !== undefined ? overrideAiKey : getCustomAiApiKey();
   try {
     const res = await fetch(`${getApiBase()}/auditor/analyze-project`, {
       method: 'POST',
@@ -417,6 +437,7 @@ export async function analyzeProject(
       body: JSON.stringify({
         project_id: projectId,
         manual_entry_point: manualEntryPoint,
+        ai_api_key: apiKey ? apiKey.trim() : undefined,
       }),
     });
 

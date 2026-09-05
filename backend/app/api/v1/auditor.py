@@ -325,10 +325,16 @@ def analyze_project(req: ProjectAnalysisRequest) -> ProjectAnalysisResponse:
     if len(items) == 1 and len(list(project_dir.glob("*"))) == 1:
         effective_dir = items[0]
 
+    prov = None
+    if req.ai_api_key and req.ai_api_key.strip():
+        from app.ai.provider import GeminiProvider
+        prov = GeminiProvider(api_key=req.ai_api_key.strip())
+
     return analyze_student_project(
         project_id=req.project_id,
         project_dir=effective_dir,
         manual_entry_point=req.manual_entry_point,
+        provider=prov,
     )
 
 

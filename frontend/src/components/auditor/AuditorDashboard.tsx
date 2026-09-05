@@ -17,7 +17,9 @@ import {
   getApiBase,
   getAuditStatus,
   getAuditorConverters,
+  getCustomAiApiKey,
   getRawCustomApiUrl,
+  setCustomAiApiKey,
   setCustomApiUrl,
   triggerAuditRun,
   triggerProjectAuditRun,
@@ -92,6 +94,7 @@ export const AuditorDashboard: React.FC = () => {
   // Backend Server Settings Modal
   const [showServerModal, setShowServerModal] = useState<boolean>(false);
   const [serverUrlInput, setServerUrlInput] = useState<string>(getRawCustomApiUrl());
+  const [aiKeyInput, setAiKeyInput] = useState<string>(getCustomAiApiKey());
   const [serverTestStatus, setServerTestStatus] = useState<string | null>(null);
   const [serverStatusPill, setServerStatusPill] = useState<'connected' | 'checking' | 'offline' | 'default'>('checking');
 
@@ -223,7 +226,8 @@ export const AuditorDashboard: React.FC = () => {
       const resp = await analyzeProject(
         projectInspection.project_id,
         manualEntryPointOverride || selectedManualEntry || undefined,
-        projectInspection
+        projectInspection,
+        aiKeyInput ? aiKeyInput.trim() : undefined
       );
       setAnalysisResponse(resp);
       if (resp.analysis?.entry_point) {
@@ -629,10 +633,16 @@ export const AuditorDashboard: React.FC = () => {
                 /* Low-Confidence / Ambiguity / Not Configured Card */
                 <div className="analysis-result-card warning">
                   <div className="analysis-card-header">
-                    <div className="warning-badge">
-                      {analysisResponse.status === 'AI_NOT_CONFIGURED'
-                        ? 'ℹ AI Provider Not Configured'
-                        : '⚠ Analysis needs confirmation'}
+                    <div className="warning-badge" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {analysisResponse.status === 'AI_NOT_CONFIGURED' ? (
+                        <>
+                          <span>⚡</span> Deterministic Code Adapter Active
+                        </>
+                      ) : (
+                        <>
+                          <span>ℹ</span> Confirmation Required
+                        </>
+                      )}
                     </div>
                     {analysisResponse.analysis && (
                       <div className="confidence-chip low">
@@ -641,11 +651,47 @@ export const AuditorDashboard: React.FC = () => {
                     )}
                   </div>
 
-                  <p className="ambiguity-explanation">
-                    {analysisResponse.analysis?.reasoning_summary ||
+                  <p className="ambiguity-explanation" style={{ lineHeight: 1.6 }}>
+                    {analysisResponse.status === 'AI_NOT_CONFIGURED' ? (
+                      <>
+                        AutoVerify analyzed the project structure deterministically without needing an external AI API key.
+                        Detected <strong>{(analysisResponse.analysis?.language || 'Python').toUpperCase()}</strong> entry point: <code>{analysisResponse.analysis?.entry_point || analysisResponse.candidate_entry_points?.[0] || 'main.py'}</code>.
+                        Confirm below to proceed directly to testing, or optionally add a Gemini API key for deep LLM reasoning.
+                      </>
+                    ) : (
+                      analysisResponse.analysis?.reasoning_summary ||
                       analysisResponse.message ||
-                      'Multiple candidate entry points or converter functions were detected.'}
+                      'Multiple candidate entry points or converter functions were detected.'
+                    )}
                   </p>
+
+                  <div style={{ margin: '14px 0', padding: '12px 14px', background: 'var(--bg-surface-sunken)', borderRadius: '8px', border: '1px solid var(--border-default)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 600 }}>Optional: Gemini AI API Key</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>For deep LLM code reasoning</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="password"
+                        placeholder="Paste Gemini API Key (e.g. AIzaSy...)"
+                        value={aiKeyInput}
+                        onChange={(e) => {
+                          setAiKeyInput(e.target.value);
+                          setCustomAiApiKey(e.target.value);
+                        }}
+                        style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border-default)', fontSize: '12px', background: 'var(--bg-input, #fff)', color: 'inherit' }}
+                      />
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{ fontSize: '12px', padding: '6px 12px', whiteSpace: 'nowrap' }}
+                        onClick={() => handleRunAnalysis(selectedManualEntry)}
+                        disabled={analysisLoading}
+                      >
+                        {analysisLoading ? 'Analyzing...' : 'Analyze with AI'}
+                      </button>
+                    </div>
+                  </div>
 
                   {analysisResponse.analysis?.ambiguities && analysisResponse.analysis.ambiguities.length > 0 && (
                     <div className="ambiguities-list-box">
@@ -1515,6 +1561,34 @@ export const AuditorDashboard: React.FC = () => {
               />
               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px' }}>
                 Active URL: <code style={{ wordBreak: 'break-all' }}>{getApiBase()}</code>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
+                Gemini AI API Key (Optional):
+              </label>
+              <input
+                type="password"
+                value={aiKeyInput}
+                onChange={(e) => {
+                  setAiKeyInput(e.target.value);
+                  setCustomAiApiKey(e.target.value);
+                }}
+                placeholder="Paste your Gemini API Key (e.g. AIzaSy...)"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-default)',
+                  fontSize: '13px',
+                  boxSizing: 'border-box',
+                  background: 'var(--bg-input, #ffffff)',
+                  color: 'inherit',
+                }}
+              />
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                Optional. If left blank, AutoVerify uses the built-in deterministic code adapter.
               </div>
             </div>
 
