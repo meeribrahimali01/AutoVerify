@@ -658,32 +658,87 @@ export const AuditorDashboard: React.FC = () => {
                     </div>
                   )}
 
-                  {analysisResponse.candidate_entry_points.length > 0 && (
-                    <div className="entry-point-picker">
-                      <label className="config-label">Confirm / Choose Entry Point:</label>
-                      <select
-                        className="config-select"
-                        value={selectedManualEntry || analysisResponse.analysis?.entry_point || ''}
-                        onChange={(e) => setSelectedManualEntry(e.target.value)}
-                      >
-                        <option value="">-- Select Candidate Entry Point --</option>
-                        {analysisResponse.candidate_entry_points.map((cand) => (
+                  <div className="entry-point-picker">
+                    <label className="config-label">Designate / Confirm Entry Point:</label>
+                    <select
+                      className="config-select"
+                      value={selectedManualEntry || analysisResponse.analysis?.entry_point || (analysisResponse.candidate_entry_points?.[0] || '')}
+                      onChange={(e) => setSelectedManualEntry(e.target.value)}
+                    >
+                      {analysisResponse.candidate_entry_points.length > 0 ? (
+                        analysisResponse.candidate_entry_points.map((cand) => (
                           <option key={cand} value={cand}>
                             {cand}
                           </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                        ))
+                      ) : (
+                        <option value="main.py">main.py</option>
+                      )}
+                    </select>
+                  </div>
 
                   <div className="inspection-actions-row">
                     <button
                       type="button"
                       className="btn-primary continue-btn"
-                      onClick={() => handleRunAnalysis(selectedManualEntry)}
+                      onClick={() => {
+                        const targetEntry =
+                          selectedManualEntry ||
+                          analysisResponse.analysis?.entry_point ||
+                          analysisResponse.candidate_entry_points?.[0] ||
+                          'main.py';
+                        const dotIdx = targetEntry.lastIndexOf('.');
+                        const ext = dotIdx !== -1 ? targetEntry.slice(dotIdx).toLowerCase() : '';
+                        const lang = ext === '.py' ? 'python' : ext === '.java' ? 'java' : ext === '.cpp' ? 'cpp' : 'c';
+                        const inv =
+                          lang === 'python'
+                            ? `python ${targetEntry} <input.json>`
+                            : lang === 'java'
+                            ? `java ${targetEntry} <input.json>`
+                            : `./${targetEntry} <input.json>`;
+
+                        const updatedAnalysis: ProjectAnalysis = analysisResponse.analysis
+                          ? {
+                              ...analysisResponse.analysis,
+                              entry_point: targetEntry,
+                              language: lang,
+                              invocation: inv,
+                              confidence: 1.0,
+                              ambiguities: [],
+                            }
+                          : {
+                              language: lang,
+                              entry_point: targetEntry,
+                              relevant_files: [targetEntry],
+                              converter_file: targetEntry,
+                              input_format: 'json',
+                              output_format: 'stdout_json',
+                              invocation: inv,
+                              conversion_type: 'epsilon_nfa_to_dfa',
+                              is_supported_language: true,
+                              confidence: 1.0,
+                              ambiguities: [],
+                              reasoning_summary: `Confirmed ${lang.toUpperCase()} entry point at "${targetEntry}".`,
+                            };
+
+                        setAnalysisResponse({
+                          ...analysisResponse,
+                          status: 'SUCCESS',
+                          analysis: updatedAnalysis,
+                        });
+                      }}
                       disabled={analysisLoading || loading}
                     >
-                      {analysisLoading ? 'Re-analyzing...' : 'Confirm Entry Point & Re-analyze'}
+                      Confirm Entry Point & Proceed to Audit →
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => handleRunAnalysis(selectedManualEntry)}
+                      disabled={analysisLoading || loading}
+                      title="Re-run static analysis"
+                    >
+                      {analysisLoading ? 'Re-analyzing...' : 'Re-run Analysis'}
                     </button>
                     <button
                       type="button"

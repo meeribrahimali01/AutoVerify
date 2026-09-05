@@ -92,6 +92,49 @@ def build_project_context(
     return tree_str, sources_str, candidate_entry_points
 
 
+def generate_heuristic_analysis(
+    candidate_entries: List[str],
+    manual_entry_point: Optional[str] = None,
+) -> ProjectAnalysis:
+    """Deterministically infer language, entry point, and execution interface without AI."""
+    entry = manual_entry_point or (candidate_entries[0] if candidate_entries else "main.py")
+    ext = Path(entry).suffix.lower()
+
+    if ext == ".py":
+        lang = "python"
+        inv = f"python {entry} <input.json>"
+    elif ext == ".java":
+        lang = "java"
+        inv = f"java {entry} <input.json>"
+    elif ext in {".cpp", ".cc", ".cxx"}:
+        lang = "cpp"
+        inv = f"./{Path(entry).stem} <input.json>"
+    elif ext == ".c":
+        lang = "c"
+        inv = f"./{Path(entry).stem} <input.json>"
+    elif ext in {".js", ".mjs", ".ts"}:
+        lang = "javascript"
+        inv = f"node {entry} <input.json>"
+    else:
+        lang = "python"
+        inv = f"python {entry} <input.json>"
+
+    return ProjectAnalysis(
+        language=lang,
+        entry_point=entry,
+        relevant_files=[entry] if entry else [],
+        converter_file=entry,
+        input_format="json",
+        output_format="stdout_json",
+        invocation=inv,
+        conversion_type="epsilon_nfa_to_dfa",
+        is_supported_language=lang in {"python", "java", "cpp", "c", "javascript"},
+        confidence=0.9 if manual_entry_point else (0.8 if len(candidate_entries) <= 1 else 0.7),
+        ambiguities=[] if manual_entry_point else ([f"AI provider not configured; detected '{entry}' as primary entry point."] if len(candidate_entries) > 1 else []),
+        reasoning_summary=f"Automated structural analysis detected {lang.upper()} entry point at '{entry}'. Confirm or select an alternative below to proceed."
+    )
+
+
 def analyze_student_project(
     project_id: str,
     project_dir: Path,
@@ -116,11 +159,16 @@ def analyze_student_project(
     
     # 2. Check if provider is configured
     if not ai_prov.is_configured():
+        heuristic = generate_heuristic_analysis(
+            candidate_entries=candidate_entries,
+            manual_entry_point=manual_entry_point,
+        )
         return ProjectAnalysisResponse(
             status="AI_NOT_CONFIGURED",
             project_id=project_id,
+            analysis=heuristic,
             candidate_entry_points=candidate_entries,
-            message="AI analysis provider is not configured. Set AUTOVERIFY_AI_API_KEY to enable automated code adaptation.",
+            message="AI analysis provider is not configured. Heuristic code adaptation generated for entry point.",
         )
 
     override_note = ""
